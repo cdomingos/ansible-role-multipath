@@ -1,0 +1,21 @@
+---
+# sanity role variables
+- name: ROLE PREREQUISITES
+  import_tasks: role-prerequisites.yml
+  tags:
+    - role:multipath:prereqs
+    - role:multipath:presetup
+
+# pre-setup stage
+- name: PRE-SETUP
+  import_tasks: presetup/main.yml
+  tags:
+    - role:multipath:presetup
+
+# setup stage
+- name: SETUP DM MULTIPATH
+  import_tasks: setup/main.yml
+
+# post-setup stage
+- name: POST-SETUP
+  import_tasks: postsetup.yml

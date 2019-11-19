@@ -1,0 +1,110 @@
+---
+- name: Check /boot device is the same disk device of /boot/efi (UEFI)
+  assert:
+    that:
+      - fact_boot_disk_wwid == fact_bootefi_disk_wwid
+  when:
+    - reg_stat_uefi_enabled.stat.isdir is defined
+    - reg_stat_uefi_enabled.stat.isdir
+
+- name: Set fact_real_boot_disk_shortname for /boot
+  set_fact:
+    fact_real_boot_disk_shortname: "{{ item.split(' ')[0] }}"
+  loop:
+    - "{{ loopvar }}"
+  loop_control:
+    label: "{{ item.split(' ')[0] }}"
+  vars:
+    # looking for real boot device disk, even that is currently managed by DM Multipath
+    loopvar: >
+      {%- if reg_stat_boot_disk.stat.lnk_source is defined -%}
+        {%- for devices in ansible_facts['devices'] -%}
+          {%- for holders in ansible_facts['devices'][devices]['holders'] if ansible_facts['devices'][devices]['holders'] is defined -%}
+            {%- if holders == fact_boot_disk_shortname -%}
+              {{ devices + ' ' }}
+            {%- endif -%}
+          {%- endfor -%}
+        {%- endfor -%}
+      {%- else -%}
+        {{ fact_boot_disk_shortname + ' ' }}
+      {%- endif -%}
+
+- name: Set fact_real_boot_disk_fullpath for /boot
+  set_fact:
+    fact_real_boot_disk_fullpath: "{{ item }}"
+  loop:
+    - "{{ '/dev/' + fact_real_boot_disk_shortname }}"
+
+- name: Set fact_real_boot_disk_model
+  set_fact:
+    fact_real_boot_disk_model: "{{ item }}"
+  loop:
+    - "{{ ansible_facts['devices'][fact_real_boot_disk_shortname]['model'] }}"
+
+- name: Set fact_real_boot_disk_vendor
+  set_fact:
+    fact_real_boot_disk_vendor: "{{ item }}"
+  loop:
+    - "{{ ansible_facts['devices'][fact_real_boot_disk_shortname]['vendor'] }}"
+
+- name: Get WWID from device of fact_real_boot_disk_fullpath
+  command: "/lib/udev/scsi_id -gu {{ item }}"
+  register: reg_command_realbootdisk_wwid
+  loop:
+    - "{{ fact_real_boot_disk_fullpath }}"
+  changed_when: false
+  failed_when: >
+    reg_command_realbootdisk_wwid.rc != 0
+    or
+    reg_command_realbootdisk_wwid.stdout_lines | length != 1
+    or
+    reg_command_realbootdisk_wwid.stderr_lines | length != 0
+
+- name: Set fact_real_boot_disk_wwid for /boot
+  set_fact:
+    fact_real_boot_disk_wwid: "{{ item.stdout }}"
+  loop: "{{ reg_command_realbootdisk_wwid.results }}"
+  loop_control:
+    label: "{{ item.stdout }}"
+
+- name: Get properties from disk device of fact_real_boot_disk_fullpath
+  stat:
+    path: "{{ fact_real_boot_disk_fullpath }}"
+    follow: true
+  register: reg_stat_real_boot_disk
+
+- name: Check all 'fact_real_boot_disk*' values are valid
+  assert:
+    that:
+      - fact_real_boot_disk_fullpath is defined and reg_stat_real_boot_disk.stat.isblk
+      - fact_real_boot_disk_shortname is defined and fact_real_boot_disk_shortname | length > 0
+      - fact_real_boot_disk_wwid is defined and fact_real_boot_disk_wwid | length > 0
+      - fact_real_boot_disk_model is defined and fact_real_boot_disk_model | length > 0
+      - fact_real_boot_disk_vendor is defined and fact_real_boot_disk_vendor | length > 0
+
+- name: Check fact_boot_disk_wwid is equal to fact_real_boot_disk_wwid
+  assert:
+    that:
+      - fact_boot_disk_wwid == fact_real_boot_disk_wwid
+
+- name: Get driver from device of fact_real_boot_disk_fullpath
+  shell: |
+    set -o pipefail
+    udevadm info -an {{ item }} | awk -F'"' '/DRIVERS/ && $0 !~ /DRIVERS=="(sd|pcieport)"/ && $0=$2'
+  register: reg_shell_real_boot_disk_driver
+  loop:
+    - "{{ fact_real_boot_disk_fullpath }}"
+  changed_when: false
+  failed_when: >
+    reg_shell_real_boot_disk_driver.rc != 0
+    or
+    reg_shell_real_boot_disk_driver.stdout_lines | length != 1
+    or
+    reg_shell_real_boot_disk_driver.stderr_lines | length != 0
+
+- name: Check driver from device of fact_real_boot_disk_fullpath
+  command: "modinfo {{ item.stdout }}"
+  loop: "{{ reg_shell_real_boot_disk_driver.results }}"
+  loop_control:
+    label: "modinfo {{ item.stdout }}"
+  changed_when: false

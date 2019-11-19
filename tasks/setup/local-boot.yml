@@ -1,0 +1,344 @@
+---
+- name: LOCAL | Remove previous DM Multipath configuration files and directory
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/multipath
+    - /etc/multipath.conf
+
+- name: LOCAL | Create /etc/multipath directory
+  file:
+    path: /etc/multipath/
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: LOCAL | Create an initial /etc/multipath.conf file
+  command: mpathconf --enable --with_module y
+  register: reg_command_multipath_setup
+  changed_when: true
+  failed_when: >
+    reg_command_multipath_setup.rc != 0
+    or
+    reg_command_multipath_setup.stderr_lines | length != 0
+
+- name: LOCAL | Check /etc/multipath.conf file exists and have content
+  stat:
+    path: /etc/multipath.conf
+  register: reg_stat_multipathconf
+  failed_when: >
+    not reg_stat_multipathconf.stat.exists
+    or
+    reg_stat_multipathconf.stat.size == 0
+
+- name: LOCAL | Comment all lines in /etc/multipath.conf
+  replace:
+    dest: /etc/multipath.conf
+    regexp: ^([^#])
+    replace: '#\1'
+  when:
+    - multipath_configfile_commentlines is defined
+    - multipath_configfile_commentlines | bool
+
+- name: LOCAL | Setup /etc/multipath.conf by basic
+  lineinfile:
+    dest: /etc/multipath.conf
+    line: |
+      defaults {
+              user_friendly_names yes
+              find_multipaths yes
+              {{ 'getuid_callout "/lib/udev/scsi_id -gu --device=/dev/%n"' if ansible_facts['service_mgr'] == 'upstart' else '' }}
+      }
+
+      blacklist {
+              wwid {{ fact_real_boot_disk_wwid }}
+      }
+    insertafter: EOF
+  when:
+    - multipath_configfile_bybasic is defined
+    - multipath_configfile_bybasic | bool
+
+- name: LOCAL | Setup /etc/multipath.conf by template
+  template:
+    src: localboot_multipath.conf.j2
+    dest: /etc/multipath.conf
+    owner: root
+    group: root
+    mode: 0600
+  when:
+    - multipath_configfile_bytemplate is defined
+    - multipath_configfile_bytemplate | bool
+
+- name: LOCAL | Setup /etc/multipath.conf by user template
+  template:
+    src: "{{ multipath_configfile_byusertemplate }}"
+    dest: /etc/multipath.conf
+    owner: root
+    group: root
+    mode: 0600
+  when:
+    - multipath_configfile_byusertemplate is defined
+    - multipath_configfile_byusertemplate | length > 0
+
+- name: LOCAL | Setup /etc/multipath.conf by sections
+  lineinfile:
+    dest: /etc/multipath.conf
+    line: |
+      {{ multipath_configfile_bysections }}
+    insertafter: EOF
+  when:
+    - multipath_configfile_bysections is defined
+    - multipath_configfile_bysections | length > 0
+
+- name: LOCAL | Ensure definitions in /etc/multipath.conf for defaults section
+  lineinfile:
+    dest: /etc/multipath.conf
+    line: "\t{{ item }}"
+    insertafter: defaults {
+  loop: "{{ multipath_configfile_defaults }}"
+  when:
+    - multipath_configfile_defaults is defined
+    - multipath_configfile_defaults | length > 0
+
+- name: LOCAL | Ensure multipathd service is restarted and enabled
+  service:
+    name: multipathd
+    state: restarted
+    enabled: yes
+
+- name: LOCAL | Check /etc/multipath.conf syntax
+  shell: |
+    set -o pipefail
+    multipath -r -d | grep 'multipath.conf'
+  register: reg_shell_multipath_checkconf
+  changed_when: false
+  failed_when: >
+    reg_shell_multipath_checkconf.rc == 0
+    or
+    reg_shell_multipath_checkconf.stderr_lines | length != 0
+    or
+    reg_shell_multipath_checkconf.stdout_lines | length != 0
+
+- name: LOCAL | Check DM Multipath errors
+  shell: |
+    set -o pipefail
+    multipath -r -d | grep 'multipath.conf'
+  register: reg_shell_multipath_checkerrors
+  changed_when: false
+  failed_when: >
+    reg_shell_multipath_checkerrors.rc == 0
+    or
+    reg_shell_multipath_checkerrors.stderr_lines | length != 0
+    or
+    reg_shell_multipath_checkerrors.stdout_lines | length != 0
+
+- name: LOCAL | Check local disk from fact_real_boot_disk_wwid is blacklisted
+  shell: |
+    set -o pipefail
+    multipath -v 4 -r -d 2>&1 | grep '{{ fact_real_boot_disk_wwid }}' | grep 'blacklisted'
+  register: reg_shell_multipath_blacklist
+  changed_when: false
+  failed_when: >
+    reg_shell_multipath_blacklist.rc != 0
+    or
+    reg_shell_multipath_blacklist.stderr_lines | length != 0
+    or
+    reg_shell_multipath_blacklist.stdout_lines | length != 1
+
+- name: LOCAL | Setup /etc/fstab with fact_boot_disk_uuid for /boot
+  replace:
+    path: /etc/fstab
+    regexp: "^({{ fact_bootdev_fstab }})"
+    replace: "{{ 'UUID=' + fact_boot_disk_uuid }}"
+  register: reg_replace_fstab_boot
+
+- name: LOCAL | Setup /etc/fstab with fact_bootefi_disk_uuid for /boot/efi (UEFI)
+  replace:
+    path: /etc/fstab
+    regexp: "^({{ fact_bootefidev_fstab }})"
+    replace: "{{ 'UUID=' + fact_bootefi_disk_uuid }}"
+  register: reg_replace_fstab_bootefi
+  when:
+    - reg_stat_uefi_enabled.stat.isdir is defined
+    - reg_stat_uefi_enabled.stat.isdir
+
+- name: LOCAL | Remove previous Ansible definitions and generic filters in /etc/lvm/lvm.conf
+  lineinfile:
+    dest: /etc/lvm/lvm.conf
+    regexp: "(^[^#]*({{ fact_lvm_filter_parameter }}).*$|^.*Ansible managed\ .*$)"
+    state: absent
+  register: reg_lineinfile_lvmconf
+
+- name: LOCAL | Setup /etc/lvm/lvm.conf
+  lineinfile:
+    dest: /etc/lvm/lvm.conf
+    line: "\t{{ item.line }}"
+    regexp: "{{ item.regexp }}"
+    insertafter: "{{ item.insertafter }}"
+    state: present
+    owner: root
+    group: root
+    mode: 0644
+  loop:
+    - line: '# Ansible managed {{ fact_lvm_filter_label }}'
+      regexp: '^.*Ansible\ .*$'
+      insertafter: 'devices {'
+    - line: '{{ fact_lvm_filter }}'
+      regexp: '^.*(^#){{ fact_lvm_filter_parameter }}\ .*$'
+      insertafter: '^.*Ansible managed\ .*$'
+  loop_control:
+    label: "{{ item.line }}"
+
+- name: "LOCAL | Check DM Multipath Settings: LVM /etc/lvm/lvm.conf file size"
+  stat:
+    path: /etc/lvm/lvm.conf
+  register: reg_stat_check_lvm_file
+  failed_when: >
+    not reg_stat_check_lvm_file.stat.exists | bool
+    or
+    reg_stat_check_lvm_file.stat.size == 0
+
+- name: "LOCAL | Check DM Multipath Settings: LVM /etc/lvm/lvm.conf filter"
+  shell: |
+    set -o pipefail
+    grep -Ev '^$|^.*#' /etc/lvm/lvm.conf | grep -wF '{{ fact_lvm_filter }}'
+  register: reg_shell_check_lvm_filter
+  changed_when: false
+  failed_when: >
+    reg_shell_check_lvm_filter.rc != 0
+    or
+    reg_shell_check_lvm_filter.stderr_lines | length != 0
+    or
+    reg_shell_check_lvm_filter.stdout_lines | length != 1
+
+- name: "LOCAL | Check DM Multipath Settings: LVM configuration"
+  command: lvm config
+  register: reg_command_check_lvm_config
+  changed_when: false
+  failed_when: >
+    reg_command_check_lvm_config.rc != 0
+    or
+    reg_command_check_lvm_config.stderr_lines | length != 0
+
+- name: "LOCAL | Check DM Multipath Settings: LVM unknow values"
+  shell: |
+    set -o pipefail
+    lvm config | grep 'unknow'
+  register: reg_shell_check_lvm_unknow
+  changed_when: false
+  failed_when: >
+    reg_shell_check_lvm_unknow.stderr_lines | length != 0
+    or
+    reg_shell_check_lvm_unknow.stdout_lines | length != 0
+
+- name: "LOCAL | Check DM Multipath Settings: LVM rebuild cache"
+  command: pvscan
+  changed_when: false
+
+- block:
+
+    - name: LOCAL | Ensure /etc/modprobe.d directory exists
+      file:
+        path: /etc/modprobe.d/
+        state: directory
+        owner: root
+        group: root
+        mode: 0755
+
+    - name: LOCAL | Setup persistent configuration file for system modules in /etc/modprobe.d/
+      copy:
+        dest: "{{ '/etc/modprobe.d/' + item.module + '.conf' }}"
+        content: >
+          {%- if item.params is defined and item.params | length > 0 -%}
+            {{ 'options' + ' ' + item.module + ' ' + item.params }}
+          {%- endif -%}
+      register: reg_copy_modprobe
+      loop: "{{ fact_modprobe }}"
+      loop_control:
+        label: "{{ '/etc/modprobe.d/' + item.module + '.conf' }}"
+
+    - name: LOCAL | Load drivers using their persistent files in /etc/modprobe.d/
+      command: "modprobe {{ item.module }}"
+      loop: "{{ fact_modprobe }}"
+      loop_control:
+        label: "{{ item.module }}"
+      register: reg_command_modprobe_files
+      changed_when: false
+      failed_when: >
+        reg_command_modprobe_files.rc != 0
+        or
+        reg_command_modprobe_files.stderr_lines | length != 0
+
+  when: fact_modprobe is defined
+
+- name: LOCAL | Setup initramfs file
+  command: "dracut -a lvm -a multipath -f {{ fact_grub_default_initrdfile }} {{ fact_grub_default_kernel }}"
+  register: reg_command_dracut
+  changed_when: true
+  failed_when: >
+    reg_command_dracut.rc != 0
+    or
+    reg_command_dracut.stderr_lines | length != 0
+
+- name: "LOCAL | Check DM Multipath Settings: initramfs file size"
+  stat:
+    path: "{{ fact_grub_default_initrdfile }}"
+  register: reg_stat_check_initramfs_file
+  failed_when: >
+    not reg_stat_check_initramfs_file.stat.exists | bool
+    or
+    reg_stat_check_initramfs_file.stat.size == 0
+
+- name: "LOCAL | Check DM Multipath Settings: initramfs multipath dracut module (file)"
+  shell: |
+    set -o pipefail
+    lsinitrd {{ fact_grub_default_initrdfile }} | grep -w 'etc/multipath.conf'
+  register: reg_shell_check_initramfs_drct_file
+  changed_when: false
+  failed_when: >
+    reg_shell_check_initramfs_drct_file.rc != 0
+    or
+    reg_shell_check_initramfs_drct_file.stderr_lines | length != 0
+    or
+    reg_shell_check_initramfs_drct_file.stdout_lines | length == 0
+
+- name: "LOCAL | Check DM Multipath Settings: initramfs multipath dracut module (daemon)"
+  shell: |
+    set -o pipefail
+    lsinitrd {{ fact_grub_default_initrdfile }} | grep -w 'sbin/multipathd'
+  register: reg_shell_check_initramfs_drct_daemon
+  changed_when: false
+  failed_when: >
+    reg_shell_check_initramfs_drct_daemon.rc != 0
+    or
+    reg_shell_check_initramfs_drct_daemon.stderr_lines | length != 0
+    or
+    reg_shell_check_initramfs_drct_daemon.stdout_lines | length == 0
+
+- name: "LOCAL | Check DM Multipath Settings: initramfs /etc/lvm/lvm.conf content"
+  command: "lsinitrd {{ fact_grub_default_initrdfile }} -f /etc/lvm/lvm.conf"
+  register: reg_command_check_initramfs_lvm_conf
+  changed_when: false
+  failed_when: >
+    reg_command_check_initramfs_lvm_conf.rc != 0
+    or
+    reg_command_check_initramfs_lvm_conf.stderr_lines | length != 0
+    or
+    reg_command_check_initramfs_lvm_conf.stdout_lines | length == 0
+
+- name: "LOCAL | Check DM Multipath Settings: initramfs /etc/lvm/lvm.conf filter"
+  shell: |
+    set -o pipefail
+    lsinitrd "{{ fact_grub_default_initrdfile }}" -f /etc/lvm/lvm.conf |\
+        grep -Ev '^$|^.*#' |\
+        grep -wF '{{ fact_lvm_filter }}'
+  register: reg_shell_check_initramfs_lvm_filter
+  changed_when: false
+  failed_when: >
+    reg_shell_check_initramfs_lvm_filter.rc != 0
+    or
+    reg_shell_check_initramfs_lvm_filter.stderr_lines | length != 0
+    or
+    reg_shell_check_initramfs_lvm_filter.stdout_lines | length != 1

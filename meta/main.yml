@@ -1,0 +1,46 @@
+---
+galaxy_info:
+  role_name: multipath
+  author: Claudio Domingos <domingos.caugusto@gmail.com>
+  description: Configure native linux multipathing (DM Multipath) for Boot from SAN or Local Boot
+  license: MIT
+  min_ansible_version: 2.7.1
+
+  platforms:
+    - name: EL
+      versions:
+        - 6
+        - 7
+        - 8
+    - name: Fedora
+      versions:
+        - 16
+        - 17
+        - 18
+        - 19
+        - 20
+        - 21
+        - 22
+        - 23
+        - 24
+        - 25
+        - 26
+        - 27
+        - 28
+        - 29
+        - 30
+        - 31
+
+  galaxy_tags:
+    - redhat
+    - fedora
+    - centos
+    - rhel
+    - devicemapper
+    - multipath
+    - multipathing
+    - baremetal
+    - storage
+    - server
+
+allow_duplicates: yes

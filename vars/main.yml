@@ -1,0 +1,28 @@
+---
+# "hard-coded" variables for multipath role
+
+# WARNING: these variables does not need user interaction
+
+# multipath_san_disk_drivers:
+#     type: list
+#
+#     affected files: n/a
+#
+#     list of disk drivers which requires SAN connectivity, allowing
+#     role to determine setup purpose (Boot from SAN or Local Boot)
+multipath_san_disk_drivers:
+  - be2iscsi
+  - bfa
+  - bnx2fc
+  - bnx2i
+  - bnx2x
+  - cxgb3i
+  - cxgb4i
+  - libcxgbi
+  - lpfc
+  - fcoe
+  - fnic
+  - qedf
+  - qedi
+  - qla2xxx
+  - qla4xxx

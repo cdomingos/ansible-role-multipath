@@ -1,0 +1,25 @@
+---
+- name: Check mandatory tools are installed
+  command: "bash -c 'type {{ item }}'"
+  changed_when: false
+  loop:
+    - multipath
+    - multipathd
+
+- name: Check invalid kernel boot parameters are not present in /proc/cmdline
+  assert:
+    that:
+      - ansible_facts['cmdline']['nompath'] is not defined
+      - >
+        ansible_facts['cmdline']['multipath'] is not defined
+        or
+        ansible_facts['cmdline']['multipath'] != 'off'
+    msg: >-
+      please
+      {%- if ansible_facts['cmdline']['nompath'] is defined %}
+      remove 'nompath' parameter in your boot loader (e.g. GRUB),
+      {% endif -%}
+      {%- if ansible_facts['cmdline']['multipath'] is defined and ansible_facts['cmdline']['multipath'] == 'off' %}
+      remove 'multipath' parameter in your boot loader (e.g. GRUB),
+      {% endif -%}
+      and reboot your system, these parameters must not be present in /proc/cmdline

@@ -1,0 +1,93 @@
+---
+- name: Check /boot/efi is mounted (UEFI)
+  assert:
+    that: ansible_facts['mounts'] | json_query('[?mount == `/boot/efi`] | [0].device')
+
+- name: Set fact_bootefi_disk_fullpath for /boot/efi (UEFI)
+  set_fact:
+    fact_bootefi_disk_fullpath: "{{ item }}"
+  loop:
+    - "{{ ansible_facts['mounts'] | json_query('[?mount == `/boot/efi`] | [0].device') }}"
+
+- name: Get properties from device of fact_bootefi_disk_fullpath (UEFI)
+  stat:
+    path: "{{ fact_bootefi_disk_fullpath }}"
+  register: reg_stat_bootefi_disk
+
+- name: Set fact_bootefi_disk_multipath_active for /boot/efi (UEFI)
+  set_fact:
+    fact_bootefi_disk_multipath_active: "{{ item }}"
+  loop:
+    - "{{ loopvar }}"
+  vars:
+    loopvar: >-
+      {%- if ansible_facts['mounts'] | json_query('[?mount == `/boot/efi`] | [0].device') | regex_search('/dev/mapper') -%}
+        true
+      {%- else -%}
+        false
+      {%- endif -%}
+
+- name: Set fact_bootefi_disk_partition for /boot/efi (UEFI)
+  set_fact:
+    fact_bootefi_disk_partition: "{{ item | regex_search ('[0-9]+') }}"
+  loop:
+    - "{{ fact_bootefi_disk_fullpath }}"
+  loop_control:
+    label: "{{ item | regex_search ('[0-9]+') }}"
+
+- name: Set fact_bootefi_disk_shortname for /boot/efi (UEFI)
+  set_fact:
+    fact_bootefi_disk_shortname: "{{ item }}"
+  loop:
+    - "{{ loopvar }}"
+  vars:
+    # when device is device-mapper backed, remove the partition number, also 'p' character for EL 6
+    loopvar: >-
+      {%- if fact_bootefi_disk_multipath_active | bool and reg_stat_bootefi_disk.stat.lnk_source is defined -%}
+        {{ fact_bootefi_disk_fullpath | regex_replace ('^(.*[/])') | regex_replace ('[0-9]+|p[0-9]+') }}
+      {%- else -%}
+        {{ fact_bootefi_disk_fullpath | regex_replace ('^(.*[/])') | regex_replace ('[0-9]+') }}
+      {%- endif -%}
+
+- name: Set fact_bootefi_disk_uuid for /boot/efi (UEFI)
+  set_fact:
+    fact_bootefi_disk_uuid: "{{ item }}"
+  loop:
+    - "{{ ansible_facts['mounts'] | json_query('[?mount == `/boot/efi`] | [0].uuid') }}"
+
+- name: Get WWID of fact_bootefi_disk_shortname (UEFI)
+  command: >-
+    {%- if fact_bootefi_disk_multipath_active | bool
+        and reg_stat_bootefi_disk.stat.lnk_source is defined
+        and ansible_facts['service_mgr'] == 'upstart'
+    -%}
+      /lib/udev/scsi_id -gu {{ '/dev/mapper/' + fact_bootefi_disk_shortname }}
+    {%- elif fact_bootefi_disk_multipath_active | bool
+        and reg_stat_bootefi_disk.stat.lnk_source is defined
+    -%}
+      /lib/udev/scsi_id -gu {{ reg_stat_bootefi_disk.stat.lnk_source }}
+    {%- else -%}
+      /lib/udev/scsi_id -gu {{ '/dev/' + fact_bootefi_disk_shortname }}
+    {%- endif -%}
+  register: reg_command_bootefidisk_wwid
+  changed_when: false
+  failed_when: >
+    reg_command_bootefidisk_wwid.rc != 0
+    or
+    reg_command_bootefidisk_wwid.stdout_lines | length > 1
+    or
+    reg_command_bootefidisk_wwid.stderr_lines | length != 0
+
+- name: Set fact_bootefi_disk_wwid for /boot/efi (UEFI)
+  set_fact:
+    fact_bootefi_disk_wwid: "{{ item }}"
+  loop:
+    - "{{ reg_command_bootefidisk_wwid.stdout }}"
+
+- name: Check all 'fact_bootefi_disk_*' values are valid (UEFI)
+  assert:
+    that:
+      - fact_bootefi_disk_partition is defined and fact_bootefi_disk_partition | int
+      - fact_bootefi_disk_shortname is defined and fact_bootefi_disk_shortname | length > 0
+      - fact_bootefi_disk_uuid is defined and fact_bootefi_disk_uuid | length > 0
+      - fact_bootefi_disk_wwid is defined and fact_bootefi_disk_wwid | length > 0

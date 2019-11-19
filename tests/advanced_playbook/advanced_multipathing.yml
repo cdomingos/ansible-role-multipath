@@ -1,0 +1,109 @@
+---
+- name: SETUP DM MULTIPATH
+  hosts: all
+  become: yes
+  gather_facts: yes
+  vars:
+    playbook_name: advanced_multipathing
+    multipath_package_upgrade: yes
+    multipath_reboot_allow: no
+    multipath_setup_pseudodevname: bootLUN
+    multipath_configfile_bytemplate: yes
+    multipath_configfile_defaults:
+      - max_fds 1048576
+    multipath_preserve_currentfiles: yes
+    multipath_debug_sysfilecontent: yes
+    multipath_debug_showvariables: yes
+    multipath_modprobe_custom:
+      - module: lpfc
+        params: lpfc_max_luns=65535 lpfc_devloss_tmo=10
+        vendor: any
+        model: any
+      - module: qla2xxx
+        params: ql2xmaxlun=65535 qlport_down_retry=10
+        vendor: any
+        model: any
+      - module: scsi_transport_fc
+        params: dev_loss_tmo=10
+        vendor: any
+        model: any
+      - module: lpfc
+        params: lpfc_max_luns=65535 lpfc_devloss_tmo=14 lpfc_lun_queue_depth=16 lpfc_discovery_threads=32
+        vendor: 3PARdata
+        model: VV
+      - module: qla2xxx
+        params: ql2xmaxlun=65535 qlport_down_retry=14 ql2xmaxqdepth=16
+        vendor: 3PARdata
+        model: VV
+      - module: qla4xxx
+        params: ql4xmaxqdepth=16
+        vendor: 3PARdata
+        model: VV
+      - module: scsi_transport_fc
+        params: dev_loss_tmo=14
+        vendor: 3PARdata
+        model: VV
+    multipath_configfile_bysections: |
+
+      devices {
+              device {
+                      vendor                   "COMPAQ  "
+                      product                  "HSV110 (C)COMPAQ"
+                      path_grouping_policy     multibus
+                      path_checker             readsector0
+                      path_selector            "round-robin 0"
+                      hardware_handler         "0"
+                      failback                 15
+                      rr_weight                priorities
+                      no_path_retry            queue
+              }
+      }
+
+  pre_tasks:
+    - block:
+        - name: Welcome message
+          debug:
+            msg: "starting playbook: {{ playbook_name }}"
+
+        - name: Log welcome message to syslog
+          command: "logger -t ansible -p daemon.info 'starting playbook: {{ playbook_name }}'"
+          changed_when: false
+
+        - name: Ensure maintenance message is present in /etc/motd
+          lineinfile:
+            path: /etc/motd
+            regexp: "^This host is under maintenance by Ansible playbook: {{ playbook_name }}"
+            line: "This host is under maintenance by Ansible playbook: {{ playbook_name }}"
+            state: present
+
+        - name: Include OS variables
+          include_vars: "{{ lookup('first_found', params )}}"
+          vars:
+            params:
+              files:
+                - "{{ ansible_facts['distribution'] }}-{{ ansible_facts['distribution_major_version'] }}.yml"
+                - "{{ ansible_facts['distribution'] }}.yml"
+                - "{{ ansible_facts['system'] }}.yml"
+                - default.yml
+              paths:
+                - vars
+
+  roles:
+    - multipath
+
+  post_tasks:
+    - block:
+        - name: Finish message
+          debug:
+            msg: "finish playbook: {{ playbook_name }}"
+
+        - name: Log finish message to syslog
+          command: "logger -t ansible -p daemon.info 'finish playbook: {{ playbook_name }}'"
+          changed_when: false
+
+        - name: Ensure maintenance message is absent in /etc/motd
+          lineinfile:
+            path: /etc/motd
+            regexp: "^This host is under maintenance by Ansible playbook: {{ playbook_name }}"
+            line: "This host is under maintenance by Ansible playbook: {{ playbook_name }}"
+            state: absent

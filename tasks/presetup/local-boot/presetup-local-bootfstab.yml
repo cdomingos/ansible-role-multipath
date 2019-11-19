@@ -1,0 +1,23 @@
+---
+- name: LOCAL | Get device for /boot from /etc/fstab
+  shell: "awk '!/^#/ && $2== \"/boot\" { print $1 }' /etc/fstab"
+  register: reg_shell_getbootdev_fstab
+  changed_when: false
+  failed_when: >
+    reg_shell_getbootdev_fstab.rc != 0
+    or
+    reg_shell_getbootdev_fstab.stdout_lines | length != 1
+    or
+    reg_shell_getbootdev_fstab.stderr_lines | length != 0
+
+- name: LOCAL | Set fact_bootdev_fstab
+  set_fact:
+    fact_bootdev_fstab: "{{ item }}"
+  loop:
+    - "{{ reg_shell_getbootdev_fstab.stdout }}"
+
+- name: LOCAL | Check fact_bootdev_fstab is valid
+  assert:
+    that:
+      - fact_bootdev_fstab is defined
+      - fact_bootdev_fstab | length > 0

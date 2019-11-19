@@ -1,0 +1,154 @@
+---
+- name: Get default kernel file from GRUB
+  command: grubby --default-kernel
+  register: reg_command_default_kernel
+  changed_when: false
+  failed_when: >
+    reg_command_default_kernel.rc != 0
+    or
+    reg_command_default_kernel.stdout_lines | length != 1
+    or
+    reg_command_default_kernel.stderr_lines | length != 0
+
+- name: Get default initrd file from GRUB
+  shell: |
+    set -o pipefail
+    ####################################################################################
+    # ShellScript:	get-default-initrd - Get default initrd
+    # Category   :	Ansible Shell Scripts
+    # Requires   :	GNU Coreutils, grubby
+    ####################################################################################
+    #
+    # Description
+    #    This script gets the default initrd file from GRUB.
+    #
+    # Synopsis
+    #    n/a
+    #
+    # Options
+    #    n/a
+    #
+    # Debug Option
+    #    n/a
+    #
+    # Requirements
+    #    n/a
+    #
+    # Installation
+    #    n/a
+    #
+    # Return Codes
+    #    On success, script will return exit code 0.
+    #    On fail, script will return exit code 1.
+    #    Textual errors are written to the standard error stream.
+    #
+    # Notes
+    #    * Shell script tested on RHEL 6, 7 and 8.
+    #
+    # Warning
+    #    n/a
+    #
+    # Examples
+    #    ./get-default-initrd
+    #
+    # TODO
+    #    n/a
+    #
+    # Changelog
+    #    * Mon Nov 18 2019 Claudio Domingos <domingos.caugusto@gmail.com> - 1.0
+    #    - initial release
+    #
+    ########################## PRE-VALIDATIONS/GLOBAL VARIABLES ########################
+
+    # declare status variable
+    GRUBBY_RC="0"
+
+    #################################### EXECUTIONS ####################################
+
+    GRUBBY_KERNEL_FILE="$( grubby --default-kernel )" || ((GRUBBY_RC++))
+    GRUBBY_INITRD_FILE="$( grubby --info=${GRUBBY_KERNEL_FILE} |\
+                                      awk '/initrd/ {
+                                                        gsub("initrd=","");
+                                                        gsub("\"","");
+                                                        gsub(".img.*",".img");
+                                                        print $0
+                                                     }' )" || ((GRUBBY_RC++))
+
+    # check status
+    if [ "${GRUBBY_RC}" == "0" ] &&
+       [ "${GRUBBY_INITRD_FILE}" ] &&
+       [ -s "${GRUBBY_INITRD_FILE}" ]
+    then
+        printf "${GRUBBY_INITRD_FILE}"
+
+        exit 0
+    else
+        # log errors
+        >&2 echo "cannot determine default initrd file"
+
+        exit 1
+    fi
+
+    ################################## END OF SCRIPT ###################################
+  register: reg_shell_default_initrd
+  changed_when: false
+  failed_when: >
+    reg_shell_default_initrd.rc != 0
+    or
+    reg_shell_default_initrd.stdout_lines | length != 1
+    or
+    reg_shell_default_initrd.stderr_lines | length != 0
+
+- name: Set fact_grub_default_initrdfile
+  set_fact:
+    fact_grub_default_initrdfile: "{{ item }}"
+  loop:
+    - "{{ reg_shell_default_initrd.stdout }}"
+
+- name: Set fact_grub_default_kernelfile
+  set_fact:
+    fact_grub_default_kernelfile: "{{ item }}"
+  loop:
+    - "{{ reg_command_default_kernel.stdout }}"
+
+- name: Set fact_grub_default_kernel
+  set_fact:
+    fact_grub_default_kernel: "{{ item | regex_replace('/boot/vmlinuz-','') }}"
+  loop:
+    - "{{ reg_command_default_kernel.stdout }}"
+  loop_control:
+    label: "{{ item | regex_replace('/boot/vmlinuz-','') }}"
+
+- name: Check fact_grub_default_initrdfile is valid
+  stat:
+    path: "{{ item }}"
+  register: reg_stat_initrdfile
+  loop:
+    - "{{ fact_grub_default_initrdfile }}"
+  failed_when: >
+    '.img' not in item
+    or
+    not reg_stat_initrdfile.stat.isreg
+    or
+    not reg_stat_initrdfile.stat.exists
+
+- name: Check fact_grub_default_kernelfile is valid
+  stat:
+    path: "{{ item }}"
+  register: reg_stat_kernelfile
+  loop:
+    - "{{ fact_grub_default_kernelfile }}"
+  failed_when: >
+    'vmlinuz-' not in item
+    or
+    not reg_stat_kernelfile.stat.isreg
+    or
+    not reg_stat_kernelfile.stat.exists
+
+- name: Check fact_grub_default_kernel is valid
+  command: "rpm --quiet -q '{{ 'kernel-' + item }}'"
+  args:
+    warn: false
+  loop:
+    - "{{ fact_grub_default_kernel }}"
+  changed_when: false

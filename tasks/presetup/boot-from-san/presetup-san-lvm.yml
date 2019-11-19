@@ -1,0 +1,38 @@
+---
+- name: SAN | Set fact_lvm_filter_parameter
+  set_fact:
+    fact_lvm_filter_parameter: "{{ item }}"
+  loop:
+    - filter
+
+- name: SAN | Check fact_lvm_filter_parameter is valid
+  assert:
+    that:
+      - fact_lvm_filter_parameter is defined
+      - fact_lvm_filter_parameter | length > 0
+      - fact_lvm_filter_parameter == 'filter'
+
+- name: SAN | Set fact_lvm_filter
+  set_fact:
+    fact_lvm_filter: "{{ item }}"
+  loop:
+    - '{{ fact_lvm_filter_parameter }} = [ "r/block/", "r/disk/", "r/sd.*/", "a/.*/" ]'
+
+- name: SAN | Check fact_lvm_filter is valid
+  assert:
+    that:
+      - fact_lvm_filter is defined
+      - fact_lvm_filter | length > 0
+      - fact_lvm_filter == '{{ fact_lvm_filter_parameter }} = [ "r/block/", "r/disk/", "r/sd.*/", "a/.*/" ]'
+
+- name: SAN | Set fact_lvm_filter_label
+  set_fact:
+    fact_lvm_filter_label: "{{ item }}"
+  loop:
+    - "( DM Multipath LVM filter for Boot from SAN )"
+
+- name: SAN | Check fact_lvm_filter_label is valid
+  assert:
+    that:
+      - fact_lvm_filter_label is defined
+      - fact_lvm_filter_label | length > 0

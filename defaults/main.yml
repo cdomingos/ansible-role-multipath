@@ -1,0 +1,224 @@
+---
+# default variables for multipath
+# see README.md for more details
+
+# multipath_setup_pseudodevname
+#     type: string
+#
+#     affected files:
+#       - /etc/fstab
+#       - /etc/multipath.conf
+#
+#     define pseudo device name (alias) for boot disk managed by DM Multipath
+#     (e.g. /dev/mapper/bootLUN)
+#
+#     NOTE: do not use "p" or numeric characteres
+#
+multipath_setup_pseudodevname: bootLUN
+
+
+# multipath_package_install
+#     type: boolean
+#
+#     affected files: n/a
+#
+#     install the device-mapper-multipath package if not present
+#
+# multipath_package_install: yes
+
+
+# multipath_package_upgrade
+#     type: boolean
+#
+#     affected files: n/a
+#
+#     upgrade (also install) the device-mapper-multipath package
+#
+# multipath_package_upgrade: yes
+
+
+# multipath_preserve_currentfiles
+#     type: boolean
+#
+#     affected files: n/a
+#
+#     before setup stage, make a permanent copy of current DM Multipath
+#     configuration files, such as /etc/multipath.conf and /etc/multipath/
+#
+#     NOTE: preserved files will be stored as /etc/multipath.conf.ansible_multipath
+#     and /etc/multipath.ansible_multipath/, once these files are copied the role
+#     will never touch them again, for directory it acts as append mode.
+#
+# multipath_preserve_currentfiles: yes
+
+
+# multipath_reboot_allow
+#     type: boolean
+#
+#     affected files: n/a
+#
+#     allow this role to reboot the managed node
+#
+# multipath_reboot_allow: yes
+
+
+# multipath_reboot_timeoutguest
+#     type: integer
+#
+#     affected files: n/a
+#
+#     max time (secs) for 'reboot' waiting a managed Guest system to becomes
+#     online again
+#
+# multipath_reboot_timeoutguest: 300
+
+
+# multipath_reboot_timeoutbaremetal
+#     type: integer
+#
+#     affected files: n/a
+#
+#     max time (secs) for 'reboot' waiting a managed Guest system to becomes
+#     online again
+#
+# multipath_reboot_timeoutbaremetal: 1800
+
+
+# multipath_modprobe_custom
+#     type: list
+#
+#     affected files:
+#       - /etc/modprobe.d/<module-name>.conf
+#
+#     load and define drivers parameters related to boot device disk vendor or model,
+#     generating a modprobe file according to module name. - please refer your
+#     connectivity guide about Enterprise Storage Array vendor
+#
+#     NOTE: using "any" value will adjust driver parameters without matching/validates
+#     local boot disk device driver, you can obtain a full device list through multipath -t
+#
+# multipath_modprobe_custom:
+#   - module: lpfc
+#     params: lpfc_max_luns=65535 lpfc_devloss_tmo=10
+#     vendor: any
+#     model: any
+#   - module: qla2xxx
+#     params: ql2xmaxlun=65535 qlport_down_retry=10
+#     vendor: 3PARdata
+#     model: VV
+
+
+# multipath_configfile_commentlines
+#     type: boolean
+#
+#     affected files:
+#       - /etc/multipath.conf
+#
+#     comment all lines in /etc/multipath.conf after mpathconf tool creates an
+#     initial configuration file
+#
+multipath_configfile_commentlines: yes
+
+
+# multipath_configfile_bybasic
+#     type: boolean
+#
+#     affected files:
+#       - /etc/multipath.conf
+#
+#     dependencies:
+#       multipath_configfile_commentlines: yes
+#
+#     overwrites /etc/multipath.conf file using a basic and functional configuration
+#     (original file comments are not preserved)
+#
+multipath_configfile_bybasic: yes
+
+
+# multipath_configfile_bytemplate
+#     type: boolean
+#
+#     affected files:
+#       - /etc/multipath.conf
+#
+#     overwrites /etc/multipath.conf file using predefined role templates
+#     (e.g. templates/bootfromsan_multipath.conf.j2) with basic functional configuration
+#     (original file comments are preserved)
+#
+# multipath_configfile_bytemplate: yes
+
+
+# multipath_configfile_byusertemplate
+#     type: string (file-path)
+#
+#     affected files:
+#       - /etc/multipath.conf
+#
+#     overwrites /etc/multipath.conf file using a custom user template file,
+#     the file must be at playbook directory level or 'templates' as well, likewise
+#     you can use role facts, see 'templates/bootfromsan_multipath.conf.j2' file
+#
+# multipath_configfile_byusertemplate: mymultipath.conf.j2
+
+
+# multipath_configfile_bysections
+#     type: string (multi-line)
+#
+#     affected files:
+#       - /etc/multipath.conf
+#
+#     include custom sections in /etc/multipath.conf file
+#
+#     NOTE: optional combined with "multipath_configfile_commentlines: yes"
+#
+# multipath_configfile_bysections: |
+#
+# devices {
+#         device {
+#                 vendor                   "COMPAQ  "
+#                 product                  "HSV110 (C)COMPAQ"
+#                 path_grouping_policy     multibus
+#                 path_checker             readsector0
+#                 path_selector            "round-robin 0"
+#                 hardware_handler         "0"
+#                 failback                 15
+#                 rr_weight                priorities
+#                 no_path_retry            queue
+#         }
+# }
+
+
+# multipath_configfile_defaults
+#     type: list
+#
+#     affected files:
+#       - /etc/multipath.conf
+#
+#     include extra parameters in "defaults {" section for /etc/multipath.conf
+#
+# multipath_configfile_defaults:
+#   - detect_prio no
+#   - failback "manual"
+#   - max_fds 1048576
+#   - max_polling_interval 20
+
+
+# multipath_debug_sysfilecontent
+#     type: boolean
+#
+#     affected files: n/a
+#
+#     before post-setup tasks (e.g. reboot), show content of modified system files
+#     in playbook stream like a task, files: /etc/fstab, /etc/lvm/lvm.conf and /etc/multipath.conf
+#
+# multipath_debug_sysfilecontent: yes
+
+
+# multipath_debug_showvariables
+#     type: boolean
+#
+#     affected files: n/a
+#
+#     show role variables and their values
+#
+# multipath_debug_showvariables: yes

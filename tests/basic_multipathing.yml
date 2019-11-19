@@ -1,0 +1,9 @@
+---
+- name: SETUP DM MULTIPATH
+  hosts: all
+
+  roles:
+    - role: multipath
+      vars:
+        multipath_setup_pseudodevname: bootLUN
+        multipath_configfile_bytemplate: yes

@@ -1,0 +1,50 @@
+---
+# common checks
+# install, update and check DM Multipath package
+- name: PRE-SETUP COMMON TASKS
+  import_tasks: common.yml
+
+# checks/facts of /boot filesystem disk
+- name: PRE-SETUP BOOT DISK
+  import_tasks: bootdisk.yml
+
+# checks/facts of /boot/efi filesystem disk
+- name: PRE-SETUP BOOT EFI DISK (UEFI)
+  include_tasks: bootefidisk.yml
+  when:
+    - reg_stat_uefi_enabled.stat.isdir is defined
+    - reg_stat_uefi_enabled.stat.isdir
+
+# checks/facts of real device backed for /boot filesystem disk
+# setup stage uses real boot disk facts...
+- name: PRE-SETUP REAL BOOT DISK
+  import_tasks: realbootdisk.yml
+
+# parses and set fact for modprobe
+# setup stage load drivers in a persistent way
+- name: PRE-SETUP MODPROBE
+  import_tasks: modprobe.yml
+
+# checks/facts of GRUB to determine default kernel and initramfs files
+# setup stage will rebuild initramfs
+- name: PRE-SETUP GRUB
+  import_tasks: grub.yml
+
+# master fact to define DM Multipath setup purpose
+# define type of setup stage
+- name: PRE-SETUP TYPE CONFIGURATION
+  import_tasks: typeconfig.yml
+
+# checks/facts used by Boot from SAN (SAN) in setup stage
+- name: PRE-SETUP DM MULTIPATH COMMON TASKS
+  import_tasks: multipathcommon.yml
+
+# checks/facts used by Boot from SAN (SAN) in setup stage
+- name: PRE-SETUP DM MULTIPATH FOR BOOT FROM SAN
+  include_tasks: boot-from-san/main.yml
+  when: fact_setup_type == "SAN"
+
+# checks/facts used by LOCAL BOOT (LOCAL) in setup stage
+- name: PRE-SETUP DM MULTIPATH FOR LOCAL BOOT
+  include_tasks: local-boot/main.yml
+  when: fact_setup_type == "LOCAL"

@@ -1,0 +1,12 @@
+---
+- name: SAN | PRE-SETUP DM MULTIPATH LVM
+  include_tasks: presetup-san-lvm.yml
+
+- name: SAN | PRE-SETUP DM MULTIPATH BOOT DISK FSTAB
+  include_tasks: presetup-san-bootfstab.yml
+
+- name: SAN | PRE-SETUP DM MULTIPATH BOOTEFI DISK FSTAB (UEFI)
+  include_tasks: presetup-san-bootefifstab.yml
+  when:
+    - reg_stat_uefi_enabled.stat.isdir is defined
+    - reg_stat_uefi_enabled.stat.isdir

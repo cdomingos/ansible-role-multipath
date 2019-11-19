@@ -1,0 +1,12 @@
+---
+- name: Set fact_setup_type (THE MASTER FACT TO INVOKE/DETERMINE BOOT FROM SAN OR LOCAL BOOT)
+  set_fact:
+    fact_setup_type: "{{ 'SAN' if item.stdout in multipath_san_disk_drivers else 'LOCAL' }}"
+  loop: "{{ reg_shell_real_boot_disk_driver.results }}"
+  loop_control:
+    label: "{{ 'SAN' if item.stdout in multipath_san_disk_drivers else 'LOCAL' }}"
+
+- name: Check fact_setup_type is valid
+  assert:
+    that:
+      - fact_setup_type == "SAN" or fact_setup_type == "LOCAL"

@@ -1,0 +1,22 @@
+---
+- name: SETUP DM MULTIPATH
+  hosts: all
+  become: yes
+  gather_facts: yes
+  vars:
+    multipath_package_upgrade: yes
+    multipath_reboot_allow: no
+    multipath_setup_pseudodevname: bootLUN
+    multipath_configfile_bytemplate: yes
+    multipath_configfile_defaults:
+      - max_fds 1048576
+    multipath_preserve_currentfiles: yes
+    multipath_debug_showvariables: yes
+    multipath_modprobe_custom:
+      - module: lpfc
+        params: lpfc_max_luns=65535
+        vendor: any
+        model: any
+
+  roles:
+    - multipath

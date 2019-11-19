@@ -1,0 +1,129 @@
+---
+- name: Check Role variables value
+  assert:
+    that:
+      # mandatory hard-coded variables
+      - role_name | type_debug == "AnsibleUnicode"
+      - multipath_san_disk_drivers | type_debug == "list"
+      # mandatory user variables
+      - multipath_setup_pseudodevname | type_debug == "AnsibleUnicode"
+      # optional user variables
+      - >
+        multipath_package_install is not defined
+        or
+        multipath_package_install | type_debug == "bool"
+      - >
+        multipath_package_upgrade is not defined
+        or
+        multipath_package_upgrade | type_debug == "bool"
+      - >
+        multipath_reboot_allow is not defined
+        or
+        multipath_reboot_allow | type_debug == "bool"
+      - >
+        multipath_reboot_timeoutguest is not defined
+        or
+        multipath_reboot_timeoutguest | type_debug == "int"
+      - >
+        multipath_reboot_timeoutbaremetal is not defined
+        or
+        multipath_reboot_timeoutbaremetal | type_debug == "int"
+      - >
+        multipath_modprobe_custom is not defined
+        or
+        multipath_modprobe_custom | type_debug == "list"
+      - >
+        multipath_configfile_commentlines is not defined
+        or
+        multipath_configfile_commentlines | type_debug == "bool"
+      - >
+        multipath_configfile_bybasic is not defined
+        or
+        multipath_configfile_bybasic | type_debug == "bool"
+      - >
+        multipath_configfile_bysections is not defined
+        or
+        multipath_configfile_bysections | type_debug == "AnsibleUnicode"
+      - >
+        multipath_configfile_bytemplate is not defined
+        or
+        multipath_configfile_bytemplate | type_debug == "bool"
+      # multipath_configfile_byusertemplate: check if file is reachable by role
+      # variable_start_string/variable_end_string are intentional wrong to
+      # avoid undefined strings
+      - >
+        multipath_configfile_byusertemplate is not defined
+        or
+        (
+          multipath_configfile_byusertemplate | type_debug == "AnsibleUnicode"
+          and
+          lookup('template', multipath_configfile_byusertemplate, variable_start_string='[%', variable_end_string='%]')
+        )
+      - >
+        multipath_configfile_defaults is not defined
+        or
+        multipath_configfile_defaults | type_debug == "list"
+      - >
+        multipath_debug_sysfilecontent is not defined
+        or
+        multipath_debug_sysfilecontent | type_debug == "bool"
+      - >
+        multipath_debug_showvariables is not defined
+        or
+        multipath_debug_showvariables | type_debug == "bool"
+      - >
+        multipath_preserve_currentfiles is not defined
+        or
+        multipath_preserve_currentfiles | type_debug == "bool"
+    msg: >-
+      Please review README.md or defaults/main.yml to set role variables properly.
+      HINT: AnsibleUnicode == string, int = integer, bool == boolean, list == list
+
+- name: Check Role variables basis
+  assert:
+    that:
+      - >-
+        multipath_configfile_bybasic is defined
+        or
+        multipath_configfile_bysections is defined
+        or
+        multipath_configfile_bytemplate is defined
+        or
+        multipath_configfile_byusertemplate is defined
+    msg: >-
+      at least one of these variables must be defined:
+      multipath_configfile_bybasic,
+      multipath_configfile_bysections,
+      multipath_configfile_bytemplate or
+      multipath_configfile_byusertemplate
+
+- name: Check Role variables combination
+  assert:
+    that:
+      - >-
+        {%- if multipath_configfile_bybasic is defined -%}
+          multipath_configfile_commentlines is defined
+        {%- endif -%}
+    msg: "'multipath_configfile_bybasic' depends from 'multipath_configfile_commentlines: yes'"
+
+- name: Show variables and values
+  debug:
+    msg:
+      - multipath_setup_pseudodevname: "{{ multipath_setup_pseudodevname if multipath_setup_pseudodevname is defined else 'NULL' }}"
+      - multipath_package_install: "{{ multipath_package_install if multipath_package_install is defined else 'NULL' }}"
+      - multipath_package_upgrade: "{{ multipath_package_upgrade if multipath_package_upgrade is defined else 'NULL' }}"
+      - multipath_reboot_allow: "{{ multipath_reboot_allow if multipath_reboot_allow is defined else 'NULL' }}"
+      - multipath_reboot_timeoutguest: "{{ multipath_reboot_timeoutguest if multipath_reboot_timeoutguest is defined else 'NULL' }}"
+      - multipath_reboot_timeoutbaremetal: "{{ multipath_reboot_timeoutbaremetal if multipath_reboot_timeoutbaremetal is defined else 'NULL' }}"
+      - multipath_modprobe_custom: "{{ multipath_modprobe_custom if multipath_modprobe_custom is defined else 'NULL' }}"
+      - multipath_configfile_commentlines: "{{ multipath_configfile_commentlines if multipath_configfile_commentlines is defined else 'NULL' }}"
+      - multipath_configfile_bybasic: "{{ multipath_configfile_bybasic if multipath_configfile_bybasic is defined else 'NULL' }}"
+      - multipath_configfile_bysections: "{{ multipath_configfile_bysections.split('\n') if multipath_configfile_bysections is defined else 'NULL' }}"
+      - multipath_configfile_bytemplate: "{{ multipath_configfile_bytemplate if multipath_configfile_bytemplate is defined else 'NULL' }}"
+      - multipath_configfile_byusertemplate: "{{ multipath_configfile_byusertemplate if multipath_configfile_byusertemplate is defined else 'NULL' }}"
+      - multipath_configfile_defaults: "{{ multipath_configfile_defaults if multipath_configfile_defaults is defined else 'NULL' }}"
+      - multipath_debug_sysfilecontent: "{{ multipath_debug_sysfilecontent if multipath_debug_sysfilecontent is defined else 'NULL' }}"
+      - multipath_preserve_currentfiles: "{{ multipath_preserve_currentfiles if multipath_preserve_currentfiles is defined else 'NULL' }}"
+  when:
+    - multipath_debug_showvariables is defined
+    - multipath_debug_showvariables | bool

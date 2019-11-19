@@ -1,0 +1,23 @@
+---
+- name: LOCAL | Get device for /boot/efi from /etc/fstab (UEFI)
+  shell: "awk '!/^#/ && $2== \"/boot/efi\" { print $1 }' /etc/fstab"
+  register: reg_shell_getbootefidev_fstab
+  changed_when: false
+  failed_when: >
+    reg_shell_getbootefidev_fstab.rc != 0
+    or
+    reg_shell_getbootefidev_fstab.stdout_lines | length != 1
+    or
+    reg_shell_getbootefidev_fstab.stderr_lines | length != 0
+
+- name: LOCAL | Set fact_bootefidev_fstab (UEFI)
+  set_fact:
+    fact_bootefidev_fstab: "{{ item }}"
+  loop:
+    - "{{ reg_shell_getbootefidev_fstab.stdout }}"
+
+- name: LOCAL | Check fact_bootefidev_fstab is valid (UEFI)
+  assert:
+    that:
+      - fact_bootefidev_fstab is defined
+      - fact_bootefidev_fstab | length > 0

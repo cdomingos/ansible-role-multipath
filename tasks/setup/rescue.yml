@@ -1,0 +1,54 @@
+---
+- name: RESCUE | Restore original system files
+  synchronize:
+    src: "{{ item + '.ansible_multipath' }}"
+    dest: "{{ item }}"
+  loop:
+    - /etc/fstab
+    - /etc/lvm/lvm.conf
+    - "{{ fact_grub_default_initrdfile }}"
+  loop_control:
+    label: "{{ item + '.ansible_multipath' }}"
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: RESCUE | Remove previous system backup files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ loopvar | default(['SKIP'], True) }}"
+  when:
+    - item != "SKIP"
+  vars:
+    loopvar: >-
+      {%- if reg_synchronize_bkpfiles is defined and reg_synchronize_bkpfiles.results is defined -%}
+      {{
+        reg_synchronize_bkpfiles.results
+        | selectattr('invocation.module_args.dest','defined')
+        | map(attribute='invocation.module_args.dest')
+        | list
+      }}
+      {%- endif -%}
+
+- name: RESCUE | Remove previous modprobe files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ loopvar | default(['SKIP'], True) }}"
+  when:
+    - item != "SKIP"
+  vars:
+    loopvar: >-
+      {%- if reg_copy_modprobe is defined and reg_copy_modprobe.results is defined -%}
+      {{
+        reg_copy_modprobe.results
+        | selectattr('invocation.module_args.dest','defined')
+        | map(attribute='invocation.module_args.dest')
+        | list
+      }}
+      {%- endif -%}
+
+- name: RESCUE | Fail
+  fail:
+    msg: >-
+      something is wrong while setting up the DM Multipath,
+      please check playbook logs.

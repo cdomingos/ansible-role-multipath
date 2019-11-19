@@ -1,0 +1,3 @@
+---
+multipath_configfile_defaults:
+  - max_polling_interval 20

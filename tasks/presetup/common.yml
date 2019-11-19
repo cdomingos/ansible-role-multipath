@@ -1,0 +1,43 @@
+---
+- name: Check mandatory tools are installed
+  command: "bash -c 'type {{ item }}'"
+  changed_when: false
+  loop:
+    - awk
+    - rsync
+    - lvmconfig
+    - grubby
+    - /lib/udev/scsi_id
+
+- name: Ensure device-mapper-multipath package is present
+  package:
+    name: device-mapper-multipath
+    state: present
+  when:
+    - multipath_package_install is defined
+    - multipath_package_install | bool
+    - >
+      multipath_package_upgrade is not defined
+      or
+      not multipath_package_upgrade | bool
+
+- name: Ensure device-mapper-multipath package is latest
+  package:
+    name: device-mapper-multipath
+    state: latest
+  when:
+    - multipath_package_upgrade is defined
+    - multipath_package_upgrade | bool
+
+- name: Check UEFI is enabled
+  stat:
+    path: /sys/firmware/efi
+  register: reg_stat_uefi_enabled
+  changed_when: false
+  failed_when: false
+
+- name: Check device-mapper-multipath package is present
+  command: rpm --quiet -q device-mapper-multipath
+  args:
+    warn: false
+  changed_when: false

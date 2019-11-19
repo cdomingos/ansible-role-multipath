@@ -1,0 +1,78 @@
+---
+- name: SAN | Get device for /boot/efi from /etc/fstab (UEFI)
+  shell: "awk '!/^#/ && $2== \"/boot/efi\" { print $1 }' /etc/fstab"
+  register: reg_shell_getbootefidev_fstab
+  changed_when: false
+  failed_when: >
+    reg_shell_getbootefidev_fstab.rc != 0
+    or
+    reg_shell_getbootefidev_fstab.stdout_lines | length != 1
+    or
+    reg_shell_getbootefidev_fstab.stderr_lines | length != 0
+
+- name: SAN | Set fact_bootefidev_fstab (UEFI)
+  set_fact:
+    fact_bootefidev_fstab: "{{ item }}"
+  loop:
+    - "{{ reg_shell_getbootefidev_fstab.stdout }}"
+
+- name: SAN | Set fact_pseudo_bootefi_device (UEFI)
+  set_fact:
+    fact_pseudo_bootefi_device: "{{ item }}"
+  loop:
+    - "{{ multipath_setup_pseudodevname }}"
+
+# in RHEL6 expected pseudo device for DM Multipath is like /dev/mapper/bootLUNp1
+# in RHEL7+ expected pseudo device for DM Multipath is like /dev/mapper/bootLUN1
+- name: SAN | Set fact_pseudo_bootefi_disk_fullpath (UEFI)
+  set_fact:
+    fact_pseudo_bootefi_disk_fullpath: >-
+      {%- if ansible_facts['service_mgr'] == 'systemd' -%}
+        {{ '/dev/mapper/' + item[0] + item[1] }}
+      {%- elif ansible_facts['service_mgr'] == 'upstart' -%}
+        {{ '/dev/mapper/' + item[0] + 'p' + item[1] }}
+      {%- endif -%}
+  with_nested:
+    - "{{ fact_pseudo_bootefi_device }}"
+    - "{{ fact_bootefi_disk_partition }}"
+  loop_control:
+    label: >-
+      {%- if ansible_facts['service_mgr'] == 'systemd' -%}
+        {{ '/dev/mapper/' + item[0] + item[1] }}
+      {%- elif ansible_facts['service_mgr'] == 'upstart' -%}
+        {{ '/dev/mapper/' + item[0] + 'p' + item[1] }}
+      {%- endif -%}
+
+# in RHEL6 expected pseudo device for DM Multipath is like /dev/mapper/bootLUNp1
+# in RHEL7+ expected pseudo device for DM Multipath is like /dev/mapper/bootLUN1
+- name: SAN | Check fact_pseudo_bootefi_disk_fullpath is valid (UEFI)
+  assert:
+    that:
+      - fact_pseudo_bootefi_disk_fullpath is defined
+      - fact_pseudo_bootefi_disk_fullpath | length > 0
+      - >-
+        {%- if ansible_facts['service_mgr'] == 'systemd' -%}
+            fact_pseudo_bootefi_disk_fullpath == "{{ '/dev/mapper/' + fact_pseudo_bootefi_device + fact_bootefi_disk_partition }}"
+        {%- elif ansible_facts['service_mgr'] == 'upstart' -%}
+            fact_pseudo_bootefi_disk_fullpath == "{{ '/dev/mapper/' + fact_pseudo_bootefi_device + 'p' + fact_bootefi_disk_partition }}"
+        {%- else -%}
+            false
+        {%- endif -%}
+
+- name: SAN | Check fact_bootefidev_fstab is valid (UEFI)
+  assert:
+    that:
+      - fact_bootefidev_fstab is defined
+      - fact_bootefidev_fstab | length > 0
+
+- name: SAN | Check fact_pseudo_bootefi_device is valid (UEFI)
+  assert:
+    that:
+      - fact_pseudo_bootefi_device is defined
+      - fact_pseudo_bootefi_device | length > 0
+
+- name: SAN | Check fact_pseudo_bootefi_disk_fullpath is valid (UEFI)
+  assert:
+    that:
+      - fact_pseudo_bootefi_disk_fullpath is defined
+      - fact_pseudo_bootefi_disk_fullpath | length > 0

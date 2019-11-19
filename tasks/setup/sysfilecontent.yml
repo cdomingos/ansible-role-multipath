@@ -1,0 +1,76 @@
+---
+- name: DEBUG | Get /etc/fstab file content (if changed)
+  shell: "ls {{ item }} && cat {{ item }}"
+  loop:
+    - /etc/fstab
+  register: reg_shell_get_fstab
+  when:
+    - >
+      (
+        reg_replace_fstab_boot is defined
+        and
+        reg_replace_fstab_boot is changed
+      )
+      or
+      (
+        reg_replace_fstab_bootefi is defined
+        and
+        reg_replace_fstab_bootefi is changed
+      )
+  changed_when: false
+  ignore_errors: yes
+
+- name: DEBUG | Show /etc/fstab file content (if changed)
+  debug:
+    msg: "debugging: {{ item.cmd | default('SKIP', True) }}"
+  loop: "{{ reg_shell_get_fstab.results | default(['SKIP'], True) }}"
+  loop_control:
+    label: "{{ item.stdout | default('SKIP', True) }}"
+  when:
+    - item != "SKIP"
+    - item.skipped is not defined
+  ignore_errors: yes
+
+- name: DEBUG | Get /etc/multipath.conf file content (if changed)
+  shell: "ls {{ item }} && cat {{ item }}"
+  loop:
+    - /etc/multipath.conf
+  register: reg_shell_get_multipathconf
+  when:
+    - reg_shell_multipath_setup is defined
+    - reg_shell_multipath_setup.rc == 0
+  changed_when: false
+  ignore_errors: yes
+
+- name: DEBUG | Show /etc/multipath.conf file content (if changed)
+  debug:
+    msg: "debugging: {{ item.cmd | default('SKIP', True) }}"
+  loop: "{{ reg_shell_get_multipathconf.results | default(['SKIP'], True) }}"
+  loop_control:
+    label: "{{ item.stdout | default('SKIP', True) }}"
+  when:
+    - item != "SKIP"
+    - item.skipped is not defined
+  ignore_errors: yes
+
+- name: DEBUG | Get /etc/lvm/lvm.conf file content (if changed)
+  shell: "ls {{ item }} && cat {{ item }}"
+  loop:
+    - /etc/lvm/lvm.conf
+  register: reg_shell_get_lvmconf
+  when:
+    - reg_lineinfile_lvmconf is defined
+    - reg_lineinfile_lvmconf is succeeded
+  changed_when: false
+  ignore_errors: yes
+
+- name: DEBUG | Show /etc/lvm/lvm.conf file content (if changed)
+  debug:
+    msg: "debugging: {{ item.cmd | default('SKIP', True) }}"
+  loop: "{{ reg_shell_get_lvmconf.results | default(['SKIP'], True) }}"
+  loop_control:
+    label: "{{ item.stdout | default('SKIP', True) }}"
+  when:
+    - item != "SKIP"
+    - item.skipped is not defined
+  ignore_errors: yes

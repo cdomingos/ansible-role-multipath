@@ -1,0 +1,3 @@
+---
+multipath_configfile_defaults:
+  - max_fds 1048576

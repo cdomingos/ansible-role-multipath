@@ -1,0 +1,35 @@
+---
+- name: Reboot
+  reboot:
+    connect_timeout: "{{ '5' if ansible_facts['virtualization_role'] == 'guest' else '10' }}"
+    reboot_timeout: "{{ rebootvar }}"
+    test_command: whoami
+  when:
+    - multipath_reboot_allow is defined
+    - multipath_reboot_allow | bool
+  vars:
+    rebootvar: >-
+      {%- if ansible_facts['virtualization_role'] == 'guest' -%}
+        {{ multipath_reboot_timeoutguest | default('300', True) }}
+      {%- else -%}
+        {{ multipath_reboot_timeoutbaremetal | default('1800', True) }}
+      {%- endif -%}
+
+- name: Remove previous system backup files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ loopvar | default(['SKIP'], True) }}"
+  when:
+    - item != "SKIP"
+    - item | regex_search(('ansible_multipath'))
+  vars:
+    loopvar: >-
+      {%- if reg_synchronize_bkpfiles is defined -%}
+        {{
+          reg_synchronize_bkpfiles.results
+          | selectattr('invocation.module_args.dest','defined')
+          | map(attribute='invocation.module_args.dest')
+          | list
+        }}
+      {%- endif -%}

@@ -1,0 +1,130 @@
+---
+- block:
+
+    - name: Check DM Multipath configuration file and directory exists
+      stat:
+        path: "{{ item }}"
+      register: reg_stat_original
+      loop:
+        - /etc/multipath.conf
+        - /etc/multipath/
+
+    - name: Backup current DM Multipath configuration file and directory (if exists)
+      synchronize:
+        src: "{{ item.stat.path }}"
+        dest: "{{ destvar }}"
+        rsync_opts: --ignore-existing
+      loop: "{{ reg_stat_original.results }}"
+      loop_control:
+        label: "{{ destvar }}"
+      when:
+        - item.stat.exists | bool
+      delegate_to: "{{ inventory_hostname }}"
+      vars:
+        destvar: >-
+          {%- if item.item | regex_search('\/$') -%}
+            {{ item.item | regex_replace('\/$','.ansible_multipath' + '/') }}
+          {%- else -%}
+            {{ item.item + '.ansible_multipath' }}
+          {%- endif -%}
+
+  when:
+    - multipath_preserve_currentfiles is defined
+    - multipath_preserve_currentfiles | bool
+
+- name: Load modules using predefined parameters
+  modprobe:
+    name: "{{ item.module }}"
+    state: present
+    params: "{{ item.params }}"
+  loop: "{{ fact_modprobe }}"
+  loop_control:
+    label: "{{ item.module }}"
+  when:
+    - fact_modprobe is defined
+    # Bypassing RHEL 6 until Ansible fix
+    # Modprobe fails when modules.builtin missing #58307
+    # https://github.com/ansible/ansible/issues/58307
+    - ansible_facts['service_mgr'] != "upstart"
+
+- name: Ensure multipathd service is restarted and enabled
+  service:
+    name: multipathd
+    state: restarted
+    enabled: yes
+
+- name: Check system files exists and have content
+  stat:
+    path: "{{ item }}"
+  loop:
+    - /etc/fstab
+    - /etc/lvm/lvm.conf
+    - "{{ fact_grub_default_initrdfile }}"
+  register: reg_stat_original_files
+  failed_when: >
+    not reg_stat_original_files.stat.exists
+    or
+    reg_stat_original_files.stat.size == 0
+
+- name: Backup system files
+  synchronize:
+    src: "{{ item }}"
+    dest: "{{ item + '.ansible_multipath' }}"
+  register: reg_synchronize_bkpfiles
+  loop:
+    - /etc/fstab
+    - /etc/lvm/lvm.conf
+    - "{{ fact_grub_default_initrdfile }}"
+  loop_control:
+    label: "{{ item + '.ansible_multipath' }}"
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Check backup system files exists and have content
+  stat:
+    path: "{{ item }}"
+  register: reg_stat_bkp_originalfiles
+  loop: "{{ loopvar | default(['SKIP'], True) }}"
+  when:
+    - item != "SKIP"
+    - item | regex_search(('ansible_multipath'))
+  failed_when: >
+    not reg_stat_bkp_originalfiles.stat.exists
+    or
+    reg_stat_bkp_originalfiles.stat.size == 0
+  vars:
+    loopvar: >-
+      {%- if reg_synchronize_bkpfiles is defined -%}
+      {{
+        reg_synchronize_bkpfiles.results
+        | selectattr('invocation.module_args.dest','defined')
+        | map(attribute='invocation.module_args.dest')
+        | list
+      }}
+      {%- endif -%}
+
+- block:
+
+    - name: SAN | SETUP DM MULTIPATH FOR BOOT FROM SAN
+      include_tasks: boot-from-san.yml
+      when:
+        - fact_setup_type == "SAN"
+
+    - name: LOCAL | SETUP DM MULTIPATH FOR LOCAL BOOT
+      include_tasks: local-boot.yml
+      when:
+        - fact_setup_type == "LOCAL"
+
+    # show content of changed system files when variable is enabled
+    - name: DEBUG | INCLUDE TASKS TO SHOW MODIFIED SYSTEM FILES
+      include_tasks: sysfilecontent.yml
+      when:
+        - multipath_debug_sysfilecontent is defined
+        - multipath_debug_sysfilecontent | bool
+
+  rescue:
+    # show content of changed system files in rescue mode
+    - name: DEBUG | INCLUDE TASKS TO SHOW MODIFIED SYSTEM FILES
+      include_tasks: sysfilecontent.yml
+
+    - name: INCLUDE RESCUE TASKS
+      include_tasks: rescue.yml

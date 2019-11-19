@@ -1,0 +1,19 @@
+---
+# create a new list of dictionaries according boot device disk properties
+- name: Set fact_modprobe from 'multipath_modprobe_custom'
+  set_fact:
+    fact_modprobe: >
+      {{ fact_modprobe | default([]) + [ { 'module': item.module, 'params': item.params, 'vendor': item.vendor, 'model': item.model } ] }}
+  loop: "{{ multipath_modprobe_custom }}"
+  loop_control:
+    label: "{{ 'module: ' + item.module }} | {{ 'params: ' + item.params }} | {{ 'model: ' + item.model }} | {{ 'vendor: ' + item.vendor }}"
+  when:
+    - multipath_modprobe_custom is defined
+    - >
+      item.model == fact_real_boot_disk_model
+      or
+      item.model == 'any'
+    - >
+      item.vendor == fact_real_boot_disk_vendor
+      or
+      item.vendor =='any'
