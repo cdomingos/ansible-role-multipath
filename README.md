@@ -399,7 +399,7 @@ There are two available tags:
   ansible-playbook multipathing.yml --tags role:multipath:prereqs
   ```
 
-* `role:multipath:presetup`: pre-setup validations, no system changes (except for requested to install or upgrade DM Multipath package using **multipath\_cfg\_package_install** or **multipath\_cfg\_package_upgrade** variables)
+* `role:multipath:presetup`: pre-setup validations, no system changes (except for requested to install or upgrade DM Multipath package using **multipath\_package_install** or **multipath\_package_upgrade** variables)
 
   ```shell
   ansible-playbook multipathing.yml --tags role:multipath:presetup
